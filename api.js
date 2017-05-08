@@ -26,6 +26,7 @@ var trace; /*
 4: errors sent to client
 5: stack of those errors
 6: routing diags
+7: connection counts
 */
 
 function enc64(str) {
@@ -75,7 +76,7 @@ exports = module.exports = function(opts) {
 			else params.push("body.length="+txt.length);
 		}
 		var uid;
-		if (!req.res.locals.session) result.optionalAuthRead(req);
+		if (!req.res.locals.session && result.optionalAuthRead) result.optionalAuthRead(req);
 		try {
 			uid = req.res.locals.session.public.id;
 		} catch (e) {
@@ -147,6 +148,21 @@ exports = module.exports = function(opts) {
 	function api(verb, path, func) {
 		if (arguments.length === 2) return api('get', verb, path);
 		return app[verb]("/"+opts.rootstem+"/"+path, function(req, res) {
+			if (trace(7)) { // this is a cheap way to canary test for long-open cons
+				server.getConnections((e,c)=> {
+					trace(6, 'on open, con count='+c);
+				});
+				res.on('close', (req, res)=> {
+					server.getConnections((e,c)=> {
+						trace(6, 'on close, con count='+c);
+					});
+				});
+				res.on('finish', (req, res)=> {
+					server.getConnections((e,c)=> {
+						trace(6, 'on finish, con count='+c);
+					});
+				});
+			}
 			trace(6, req.method, req.url, {body: req.body, query: req.query, params: req.params, headers: req.headers});
 			/* jshint -W064 */
 			var p = q(true);
@@ -248,9 +264,7 @@ exports = module.exports = function(opts) {
 			return j;
 		};
 
-		//api('get', 'login', authCheck);
 		app.use(function(req, res, next) {
-			//lo("INTERCEPTING", {method: req.method, url: req.url, params: req.params, query: req.query, body: req.body, cookie: req.headers.cookie});
 			try {
 				authCheck(req, res);
 				next();
@@ -267,8 +281,21 @@ exports = module.exports = function(opts) {
 			res.cookie(cookie_name, 'invalid', { maxAge: -1000 });
 			return {session: false};
 		});
-		//api('get', 'test_login', () => {login: true});
 	};
+
+	/*
+	result.static = function(local_path, public_path) {
+		public_path = public_path || '';
+		lo("static", local_path, public_path);
+		app.use((req, res, next)=> {
+			lo("static load?", req.url);
+			if (req.url.match(/^\/[a-z/A-Z-]*(.[a-zA-Z])?$/)) {
+				lo("static load", req.url);
+				next();
+			} else next();
+		});
+	};
+	*/
 
 	result.endApi = function() {
 		app.use((req, res, next)=> {
