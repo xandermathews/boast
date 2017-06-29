@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash -e
 
 NVM_VERSION=0.33.2 # see https://github.com/creationix/nvm
 NODE_VERSION=v6.11.0
@@ -15,6 +15,16 @@ must_exist() {
 		[[ -x $(which $tool) ]] || die "$tool is not in path"
 	done
 }
+check_exist() {
+	local tool
+	for tool; do
+		[[ -x $(which $tool) ]] || return 1
+	done
+	return 0
+}
+check_version() {
+	check_exist $1 && [[ $($1 --version) =~ $2 ]]
+}
 
 must_exist curl
 
@@ -25,10 +35,10 @@ fi
 
 . "$NVM_DIR/nvm.sh"
 
-if [[ ! -x "$(which node)" || $(node --version) != $NODE_VERSION ]]; then
+if ! check_version node $NODE_VERSION; then
 	nvm install --lts
 	nvm use --lts
 	nvm alias default stable
 fi
 
-node bootstrap.js
+node ${0%.sh}.js
