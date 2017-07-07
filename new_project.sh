@@ -25,10 +25,28 @@ check_exist() {
 check_version() {
 	check_exist $1 && [[ $($1 --version) =~ $2 ]]
 }
+all_yes=0
+confirm() {
+	((all_yes)) && return
+	echo about to install $1. 'continue? [Yna] (yes, no, all-yes)'
+	local ans
+	read ans
+	case $ans in
+		(a)
+			all_yes=1
+			return
+		;;
+		(''|y|Y)
+			return
+		;;
+	esac
+	exit
+}
 
 must_exist curl
 
 if [[ ! -s "$NVM_DIR/nvm.sh" ]]; then
+	confirm nvm
 	curl -o- https://raw.githubusercontent.com/creationix/nvm/v$NVM_VERSION/install.sh | bash
 	[[ -s "$NVM_DIR/nvm.sh" ]] || die "nvm install"
 fi
@@ -36,9 +54,32 @@ fi
 . "$NVM_DIR/nvm.sh"
 
 if ! check_version node $NODE_VERSION; then
+	confirm node
 	nvm install --lts
 	nvm use --lts
 	nvm alias default stable
 fi
 
-node ${0%.sh}.js
+project=${0%.sh}.js
+if [[ ! -f package.json ]]; then
+	npm init -y || exit 1
+	if [[ -f $project ]]; then
+		sed "s|index.js|$project|" -i package.json
+	fi
+fi
+
+if [[ ! -d node_modules ]]; then
+	npm install --save-dev --save-exact --legacy-bundling webpack webpack-dev-server css-loader style-loader
+fi
+
+if [[ -f $project ]]; then
+	node $project
+else
+	sed -e '1,/^#SERVER.JS/d' $0 > $project
+	node $project
+	rm $project
+fi
+exit
+#SERVER.JS
+"use strict";
+console.log("server platform installed");
