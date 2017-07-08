@@ -46,7 +46,7 @@ exports = module.exports = function(opts) {
 	if (typeof opts === 'number') opts = {port: opts};
 	else opts = opts || {};
 	opts.port = opts.port || 8080;
-	opts.rootstem = opts.rootstem || 'api';
+	opts.rootstem = opts.rootstem || '/'; // "/api/" would prefix that to all paths.
 	var init = q.defer();
 
 	var app = express();
@@ -101,7 +101,7 @@ exports = module.exports = function(opts) {
 			if (e.stack) trace(5, 'STACK:\n', e.stack, '\n');
 			if (!e.code) e.code = 400;
 			e.msg = e.msg || e.message || ''+e; // in node, you can't override Error.message and get it to json, so let's just standardize on a shorter name.
-			if (e.msg === '[object Object]') e.msg = verb +' /'+opts.rootstem+'/'+path+' had a '+e.code+' error';
+			if (e.msg === '[object Object]') e.msg = verb +' '+opts.rootstem+path+' had a '+e.code+' error';
 			// TODO: add support for type=tcp to u.lo
 			// trace(4, {errs: [e], req});
 			// then, just add req.path to the following:
@@ -147,7 +147,7 @@ exports = module.exports = function(opts) {
 
 	function api(verb, path, func) {
 		if (arguments.length === 2) return api('get', verb, path);
-		return app[verb]("/"+opts.rootstem+"/"+path, function(req, res) {
+		return app[verb](opts.rootstem+path, function(req, res) {
 			if (trace(7)) { // this is a cheap way to canary test for long-open cons
 				server.getConnections((e,c)=> {
 					trace(6, 'on open, con count='+c);
@@ -283,19 +283,42 @@ exports = module.exports = function(opts) {
 		});
 	};
 
-	/*
+	// api.static('dir','/publics') will mount everything under $PWD/dir as /publics.
+	// they can be stacked to create a layered "base template, overlay" situation.
 	result.static = function(local_path, public_path) {
+		var fs = require('fs');
 		public_path = public_path || '';
-		lo("static", local_path, public_path);
 		app.use((req, res, next)=> {
-			lo("static load?", req.url);
-			if (req.url.match(/^\/[a-z/A-Z-]*(.[a-zA-Z])?$/)) {
-				lo("static load", req.url);
-				next();
-			} else next();
+			try {
+				if (req.url.indexOf('/.') !== -1) {
+					res.writeHead(404);
+					result.prodLog(404, req, "denied due to hidden-file|dir-parent rule");
+					return res.end();
+				}
+
+				var fixed = req.url.substr(0, public_path.length);
+				if (fixed !== public_path) return next();
+
+				var rel = local_path + req.url.substr(public_path.length);
+
+				// works but not needed unless a custom code is wanted: res.writeHead(200);
+				var fileStream = fs.createReadStream(rel);
+				fileStream.pipe(res);
+				fileStream.on('end', ()=> {
+					result.prodLog(200, req, "sent: "+rel);
+				});
+				fileStream.on('error',function(e) {
+					next();
+				});
+			} catch(e) {
+				res.status(500);
+				var output = {errs:[{code:500, msg:"Internal Server Error"}]};
+				result.prodLog(500, req, output);
+				console.log(e.stack);
+				res.send(output);
+			}
 		});
 	};
-	*/
 
 	result.endApi = function() {
 		app.use((req, res, next)=> {
