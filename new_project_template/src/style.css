@@ -1,0 +1,6 @@
+@back: #eee;
+
+body {
+	background-color: @back;
+	color: #111;
+}
