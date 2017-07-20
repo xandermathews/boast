@@ -27,8 +27,8 @@
 		"jshint": "2.9.5"
 	},
 	"scripts": {
-		"start": "webpack-dev-server --config infra/webpack.config.js",
-		"deploy": "webpack --config infra/webpack.config.js -p",
+		"dev": "webpack-dev-server --config infra/webpack.config.js",
+		"build": "webpack --config infra/webpack.config.js -p",
 		"test": "mocha src/**/tests/*.js"
 	},
 	"keywords": [],

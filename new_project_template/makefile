@@ -1,13 +1,13 @@
 dev: npm
-	npm start
+	npm run dev
 	# http://localhost:8080/ is the app
 	# http://localhost:8080/app adds refresh
 	# http://localhost:8080/webpack-dev-server/app adds compile message bar
 
-prod: npm
+build: npm
 	# https://webpack.js.org/guides
 	npm run build
-prod-watch:
+build-watch:
 	npm run build -- --watch
 
 test:
