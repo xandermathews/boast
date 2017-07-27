@@ -177,6 +177,9 @@ exports = module.exports = function(opts) {
 	}
 	result.api = api;
 
+	// checker() is called with (user,pass) during session creation, and (session) during re-auth to allow for stateful validation.
+	// in the first case, if the function result has {public:N}, N will be returned to client. if result is falsy, auth fails.
+	// in the second case, return session to pass, falsy to fail.
 	result.requireAuthBy = function(checker, secret, days, cookie_name) {
 		cookie_name = cookie_name || 'auth';
 		if (!secret) {
@@ -242,8 +245,12 @@ exports = module.exports = function(opts) {
 			var raw = dec64(cookie_val);
 			var j = JSON.parse(raw);
 			if (Number(j.expiration) < Date.now()) fail('login token expired');
-			res.locals.session = j;
-			return j;
+			return q(checker(j)).then(check => {
+				if (check) {
+					return res.locals.session = check;
+				}
+				fail("closed");
+			});
 		}
 		result.manualAuthCheck = authCheck;
 
