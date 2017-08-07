@@ -1,7 +1,7 @@
 {
 	"name": "boast",
-	"version": "0.1.9",
-	"description": "a minimal-fuss promise-based test-automation harness",
+	"version": "0.2.0",
+	"description": "a minimal-fuss promise-based test-automation harness and/or express rest api framework and/or kitchen sink",
 	"main": "index.js",
 	"scripts": {
 		"test": "npm start"

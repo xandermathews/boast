@@ -45,8 +45,13 @@ u.each = function(o, visitor) {
 		case 'error':
 			return Object.keys(o).map(k=>visitor(o[k], k, o));
 
+		case 'tcp':
+			// TEST ME: due to circular testing chopping of the parent of this node, it's hard to test to see if I've correctly redact this-- so I went with as similar to the above code as possible.
+			o = ['[TCP connection object]'];
+			return o.map(visitor);
+
 		default:
-			throw u.type(o) + ' is not a valid type for util.each';
+			throw new Error(u.type(o) + ' is not a valid type for util.each');
 	}
 };
 

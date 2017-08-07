@@ -63,7 +63,6 @@ exports = module.exports = function(opts) {
 
 	function prodFilter(k, v) {
 		if (k === 'pass') return '[redacted]';
-		if (k === 'contents') return '['+v.length+' bytes]';
 		return v;
 	}
 
@@ -75,13 +74,10 @@ exports = module.exports = function(opts) {
 			if (txt.length < 1000) params.push(txt);
 			else params.push("body.length="+txt.length);
 		}
-		var uid;
-		if (!req.res.locals.session && result.optionalAuthRead) result.optionalAuthRead(req);
 		try {
-			uid = req.res.locals.session.public.id;
-		} catch (e) {
-		}
-		if (uid) params.push('user'+uid);
+			var uid = req.res.locals.session.iduser;
+			if (uid) params.push('user'+uid);
+		} catch (e) { }
 		if (req.headers['x-from']) params.push(req.headers['x-from']);
 		if (output) {
 			txt = JSON.stringify(output, prodFilter);
@@ -177,115 +173,77 @@ exports = module.exports = function(opts) {
 	}
 	result.api = api;
 
-	// checker() is called with (user,pass) during session creation, and (session) during re-auth to allow for stateful validation.
-	// in the first case, if the function result has {public:N}, N will be returned to client. if result is falsy, auth fails.
-	// in the second case, return session to pass, falsy to fail.
-	result.requireAuthBy = function(checker, secret, days, cookie_name) {
+	result.requireAuthBy = function(authority, days, cookie_name) {
+		if (typeof authority === 'function') throw "requireAuthBy requires an auth module, not function.";
+		if (typeof authority.login !== 'function') throw "requireAuthBy requires login";
+		if (typeof authority.checkSession !== 'function') throw "requireAuthBy requires checkSession";
+
 		cookie_name = cookie_name || 'auth';
-		if (!secret) {
-			secret = crypto.randomBytes(16).toString('hex'); // cache me if more than one app server needs to coordinate
-		}
 		days = days || 30;
 		var maxAge = Math.floor(days*24*60*60000);
 
-		if (typeof checker !== 'function') {
-			if (typeof checker.checkPass === 'function') checker = checker.checkPass;
-			else throw "api was handed a checker that was not a function, but a " + typeof checker;
-		}
-
-		function hmacify(msg) {
-			var h = crypto.createHmac('sha256', secret);
-			h.update(msg);
-			return msg +'.'+ h.digest('base64');
-		}
-		function testHmac(msg, sig) {
-			var h = crypto.createHmac('sha256', secret);
-			h.update(msg);
-			var expected = h.digest('base64');
-			return expected === sig;
-		}
-
 		api('post', 'login', function(req, res) {
 			if (!req.body.user || !req.body.pass) throw {code: 401, msg: "user/pass json required with correct Content-Type header."};
-			return q(checker(req.body.user, req.body.pass)).then(function(resp) {
-				if (!resp) throw "checker returned a "+ u.type(resp);
-				resp.expiration = Date.now() + maxAge;
-				var c = hmacify(enc64(JSON.stringify(resp)));
-				res.cookie(cookie_name, c, {
+			return q(authority.login(req.body.user, req.body.pass)).then(function(resp) {
+				if (!resp) throw "authority returned a "+ u.type(resp);
+				if (!resp.cookie) throw "authority did not return cookie";
+				if (!resp.response) throw "authority did not return response";
+
+				res.cookie(cookie_name, resp.cookie, {
 					maxAge: maxAge,
-					//secure: true, // HTTPS
-					httpOnly: true, // no JS
-					encode: function(inp) { return inp; } // I want exactly what I sent; I don't want an escaper touching my base64
+					secure: !opts.cookies_over_http,
+					httpOnly: !opts.cookies_in_js,
+					sameSite: true,
 				});
-				if (resp.public) return resp.public;
-				return {session: true};
+				return resp.response;
 
 			}, function(e) {
 				res.cookie(cookie_name, 'invalid', { maxAge: -1000 });
+				if (!e.msg) {
+					// it wasn't one of mine...
+					console.error(e);
+					throw e;
+				} else {
+					lo("failing auth check based on", e.msg);
+				}
 				throw {code: 401, msg:"invalid credentials"};
 			});
 		});
 
 		function authCheck(req, res) {
 			function fail(msg) {
-				lo("failing auth check based on", msg);
-				res.cookie(cookie_name, 'invalid', { maxAge: -1000 });
 				throw {code: 401, msg: msg};
 			}
-			var c = req.headers.cookie;
-			// TODO: improve robustness by commenting out the next line, making api calls without a cookie, and tracing this "Error: Can't set headers after they are sent." error.
-			if (!c) fail('no cookie');
-			var cookies = cookie.parse(req.headers.cookie);
-			c = cookies[cookie_name];
-			if (!c) fail('no cookie');
-			var parts = c.split('.');
-			if (!c.match(/^[.0-9a-zA-Z+\/=]*$/) || parts.length !== 2) fail('cookie byte');
-			var cookie_val = parts[0];
-			if (!testHmac(cookie_val, parts[1])) fail('bad sig');
-			var raw = dec64(cookie_val);
-			var j = JSON.parse(raw);
-			if (Number(j.expiration) < Date.now()) fail('login token expired');
-			return q(checker(j)).then(check => {
-				if (check) {
-					return res.locals.session = check;
-				}
-				fail("closed");
-			});
+			var cookies = cookie.parse(req.headers.cookie || '');
+			if (!cookies[cookie_name]) throw {msg: "no cookie", code: 401};
+			return q(authority.checkSession(cookies[cookie_name], req));
 		}
-		result.manualAuthCheck = authCheck;
-
-		result.optionalAuthRead = function(req) {
-			var c = req.headers.cookie;
-			if (!c) return {};
-			var cookies = cookie.parse(req.headers.cookie);
-			c = cookies[cookie_name];
-			if (!c) return {};
-			var parts = c.split('.');
-			if (!c.match(/^[.0-9a-zA-Z+\/=]*$/) || parts.length !== 2) return {};
-			var cookie_val = parts[0];
-			if (!testHmac(cookie_val, parts[1])) return {};
-			var raw = dec64(cookie_val);
-			var j = JSON.parse(raw);
-			if (Number(j.expiration) < Date.now()) return {};
-			req.res.locals.session = j;
-			return j;
-		};
 
 		app.use(function(req, res, next) {
-			try {
-				authCheck(req, res);
+			return q().then(() => {
+				return authCheck(req, res);
+			}).then(session => {
+				res.locals.session = session;
 				next();
-			} catch (e) {
+			}, e=> {
+				res.cookie(cookie_name, 'invalid', { maxAge: -1000 });
 				handleErrors(req, res, q.reject(e));
-				if (!e.msg) throw e; // it wasn't one of mine...
-			}
+				if (!e.msg) {
+					// it wasn't one of mine...
+					console.error(e);
+					throw e;
+				} else {
+					lo("failing auth check based on", e.msg);
+				}
+			});
 		});
+
 		api('logged_in', function(req, res) {
-			if (res.locals.session.public) return res.locals.session.public;
 			return {session: true};
 		});
 		api('logout', function(req, res) {
 			res.cookie(cookie_name, 'invalid', { maxAge: -1000 });
+			authority.logout(res.locals.session.id);
 			return {session: false};
 		});
 	};
