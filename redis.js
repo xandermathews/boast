@@ -226,6 +226,7 @@ function installEventHooks(redis_client, onready) {
 }
 
 module.exports = function(deps_and_opts) {
+	deps_and_opts = deps_and_opts || {};
 	if (deps_and_opts.verbosity !== undefined) module.exports.verbosity = deps_and_opts.verbosity;
 	var redis_client = require('redis').createClient(deps_and_opts);
 

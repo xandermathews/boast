@@ -420,3 +420,8 @@ var redis_tests = {
 exports.testRedis = function(wrap) {
 	return boast(redis_tests, wrap, true).fin(a=> wrap.conn.unref());
 };
+
+if (require.main === module) {
+	console.log("this doesn't run the tests, as they require a running blank redis server. see the test flag in require('redis.js')({test:true})");
+}
+
