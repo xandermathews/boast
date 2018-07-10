@@ -31,7 +31,6 @@ function gen(key, attrs, parent) {
                     data_keys.push(schema[k]);
                     header.gen('th', {text: k});
                 });
-                console.log({col_names});
 
                 var max = Math.floor(Math.random() * 6) + 1;
                 for (var i = 0; i < max; ++i)
