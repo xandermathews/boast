@@ -32,14 +32,13 @@ function gen(key, attrs, parent) {
                     header.gen('th', {text: k});
                 });
 
-                var max = Math.floor(Math.random() * 6) + 1;
-                for (var i = 0; i < max; ++i)
-                list.map(row => {
+                return list.map(row => {
                     var tr = child.gen('tr');
                     col_names.map(name => {
                         var data_key = schema[name];
                         tr.gen('td', {text: row[data_key]});
                     });
+					return tr;
                 });
             };
 
