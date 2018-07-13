@@ -36,7 +36,12 @@ function gen(key, attrs, parent) {
                     var tr = child.gen('tr');
                     col_names.map(name => {
                         var data_key = schema[name];
-                        tr.gen('td', {text: row[data_key]});
+                        if (typeof data_key === 'function') {
+                            var result = data_key(row, tr);
+                            if (result) tr.gen('td').append(result);
+                        } else {
+                            tr.gen('td', {text: row[data_key]});
+                        }
                     });
 					return tr;
                 });
@@ -55,5 +60,3 @@ function gen(key, attrs, parent) {
     };
     return ele;
 }
-
-
