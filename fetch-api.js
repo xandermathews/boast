@@ -1,6 +1,6 @@
 "use strict";
 
-var api = {
+window.api = {
 	appendHeader(conf, key, val, force) {
 		conf = conf || {};
 		conf.headers = conf.headers || {};
@@ -13,7 +13,6 @@ var api = {
 	},
 
 	get: function(path, conf, control) {
-		var url = (api.base_url || '') + path;
 		if (arguments.length === 2 && typeof conf === 'string') {
 			control = conf;
 			conf = {};
@@ -23,6 +22,13 @@ var api = {
 		if (typeof control === 'string') {
 			control = {formatter: control};
 		}
+
+		var needs_prefix = true;
+		var prefix = api.base_url || '';
+		if (path[0] === '/') prefix = '';
+		if (path.match(/^https?:\/\//)) prefix = '';
+		var url = (control.base_url || prefix) + path;
+
 		switch (control.formatter) {
 			case undefined:
 				control.formatter = resp => {
@@ -49,7 +55,7 @@ var api = {
 		api.appendHeader(conf, 'Accept', "application/json");
 		api.appendHeader(conf, 'Authorization', api.authorization);
 
-		return fetch(url, conf).then(response => {
+		return Q(fetch(url, conf)).then(response => {
 			if (control.orig_body) conf.body = control.orig_body;
 			return control.formatter(response).then(body => {
 				var headers = {};
