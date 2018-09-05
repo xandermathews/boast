@@ -99,3 +99,5 @@ window.api = {
 		return api.post(path, body, conf, control);
 	}
 };
+window.LIB_LOADING = window.LIB_LOADING || {};
+window.LIB_LOADING['fetch-api'] = true;
