@@ -31,8 +31,8 @@ window.api = {
 
 		switch (control.formatter) {
 			case undefined:
-				control.formatter = resp => {
-					return resp.text().then(raw => {
+				control.formatter = function(resp) {
+					return resp.text().then(function(raw) {
 						try {
 							return JSON.parse(raw);
 						} catch (e) {
@@ -42,7 +42,7 @@ window.api = {
 				}
 			break;
 			case 'text':
-				control.formatter = resp => resp.text();
+				control.formatter = function(resp) { return resp.text(); };
 			break;
 		}
 
@@ -55,18 +55,18 @@ window.api = {
 		api.appendHeader(conf, 'Accept', "application/json");
 		api.appendHeader(conf, 'Authorization', api.authorization);
 
-		return Q(fetch(url, conf)).then(response => {
+		return Q(fetch(url, conf)).then(function(response) {
 			if (control.orig_body) conf.body = control.orig_body;
-			return control.formatter(response).then(body => {
+			return control.formatter(response).then(function(body) {
 				var headers = {};
 				for (var h of response.headers) {
 					headers[h[0]] = h[1];
 				}
 				return { body, headers, code: response.status, response, request: {url, conf} };
 			});
-		}, error => {
+		}, function(error) {
 			return { code: 0, body: {errors:[error]}, request: {url, conf}, headers: {} };
-		}).then(normalized => {
+		}).then(function(normalized) {
 			if (normalized.body && normalized.body.errors && normalized.body.errors.length) {
 				throw normalized;
 			}
