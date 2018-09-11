@@ -1,6 +1,6 @@
 {
 	"name": "boast",
-	"version": "0.1.10",
+	"version": "0.1.11",
 	"description": "a minimal-fuss promise-based test-automation harness",
 	"main": "index.js",
 	"scripts": {

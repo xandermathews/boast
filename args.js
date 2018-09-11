@@ -78,8 +78,9 @@ function parse(argv) {
 	} else {
 		argv = argv.slice();
 	}
+	var dashedOut = false;
 	argv.forEach(arg => {
-		if (arg === '--help') {
+		if (!dashedOut && arg === '--help') {
 			if (parse.gnu.help) {
 				parse.gnu.help();
 			} else {
@@ -94,7 +95,7 @@ function parse(argv) {
 				console.log(`USAGE: ${usage}\n${parse.help.summary}\n` + parse.helpTable());
 			}
 			process.exit(0);
-		}
+		} else if (arg === '--') dashedOut = true;
 	});
 	try {
 		while (argv.length) {
