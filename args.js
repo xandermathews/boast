@@ -326,7 +326,7 @@ parse.helpTable = function() {
 		var len = key.length;
 		if (parse.suffix[key]) len += 1 + parse.suffix[key].length;
 		return len;
-	}).reduce((max, cur) => Math.max(max, cur));
+	}).reduce((max, cur) => Math.max(max, cur), 0);
 
 	var out = '';
 
